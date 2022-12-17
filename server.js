@@ -29,21 +29,35 @@ bot.use(async (ctx, next) => {
 
   if (ctx?.editedMessage?.location) {
     //Track edited locations
-    const { location, edit_date } = ctx?.editedMessage;
+    const { message_id, date, edit_date, location, chat } = ctx?.editedMessage;
 
-    const point = {
+    const data = {
+      messageID: message_id,
+      created_by: chat.id,
+      created_at: edit_date,
       coordinates: [location.longitude, location.latitude],
-      heading: location.heading,
-      timestamp: edit_date,
     };
 
     mongoClient
       .db(dbName)
       .collection("location")
-      .updateOne(
-        { messageID: ctx?.editedMessage?.message_id },
-        { $push: { points: point } }
-      );
+      .findOne({ messageID: message_id })
+      .then((result) => {
+        mongoClient
+          .db(dbName)
+          .collection("location")
+          .insertOne(data)
+          .then((result) => {
+            return true;
+          })
+          .catch((err) => {
+            console.error(err);
+            return false;
+          });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
   }
 });
 
@@ -76,16 +90,11 @@ bot.start((ctx) => {
 bot.on("location", (ctx) => {
   const { message_id, date, edit_date, location, chat } = ctx.message;
 
-  const point = {
-    coordinates: [location.longitude, location.latitude],
-    timestamp: date,
-  };
-
   const data = {
     messageID: message_id,
     created_by: chat.id,
     created_at: date,
-    points: [point],
+    coordinates: [location.longitude, location.latitude],
   };
 
   mongoClient
